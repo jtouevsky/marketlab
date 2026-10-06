@@ -1,0 +1,49 @@
+# --- Secrets: never commit ---
+.env
+.env.*
+!.env.example
+
+# --- Your personal MarketLab data (research projects, notebook, downloaded caches) ---
+research/
+notebook/
+cache/
+data/
+Claude outputs/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Node (optional browser tests) ---
+node_modules/
+test-results/
+playwright-report/
+
+# --- Large / generated data files ---
+*.csv
+*.parquet
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.log
+
+# --- Editors & OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

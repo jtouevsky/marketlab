@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MarketLab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Type: Geist (UI/text) · Bricolage Grotesque (display, sparingly) · Geist Mono (aligned numbers) -->
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400..800&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/theme-dark.css">
+  <link rel="stylesheet" href="/static/theme.css">
+  <script>
+    // Appearance before first paint (no flash): saved choice "light" | "dark" | "system" (default light)
+    (function () {
+      var pref = "light";
+      try { pref = localStorage.getItem("marketlab.theme") || "light"; } catch (e) {}
+      var dark = pref === "dark" || (pref === "system" && window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.themePref = pref;
+    })();
+  </script>
+</head>
+<body>
+  <!-- Static color fields; only visible through glass (no animation: cheap to scroll over) -->
+  <div class="atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
+
+  <!-- ===== Top bar ===== -->
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" id="brand-mark" aria-hidden="true"></span><div class="brand-word">MarketLab</div></div>
+
+    <!-- Level 1: MarketLab environments -->
+    <nav id="env-nav" class="env-nav glass" aria-label="MarketLab">
+      <button data-env="research" data-icon="research">Research</button>
+      <button data-env="invest" class="invest-tab" data-icon="invest">Invest</button>
+      <button data-env="lab" class="lab-tab" data-icon="lab">Lab</button>
+      <button data-env="notebook" data-icon="notebook">Notebook</button>
+      <button class="more-btn" id="more-btn" aria-haspopup="menu" aria-expanded="false" aria-label="More" data-tip="Replay · Advanced · Data">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="3.5" cy="8" r="1.4" fill="currentColor"/><circle cx="8" cy="8" r="1.4" fill="currentColor"/><circle cx="12.5" cy="8" r="1.4" fill="currentColor"/></svg></button>
+    </nav>
+    <div id="more-menu" class="more-menu" role="menu" hidden>
+      <button role="menuitem" data-more="replay"><b>Replay</b><span>Step through history without seeing the future</span></button>
+      <button role="menuitem" data-more="advanced"><b>Advanced research</b><span>Full strategy editor: definitions, conditions, timeframes</span></button>
+      <button role="menuitem" data-more="quick"><b>Quick test</b><span>Fast single-stock swing questions</span></button>
+      <button role="menuitem" data-more="data"><b>Data &amp; methodology</b><span>Where every number comes from, and the rules MarketLab follows</span></button>
+      <div class="theme-switch" role="group" aria-label="Appearance"><span class="label">Appearance</span>
+        <div class="seg"><button data-theme-set="light">Light</button><button data-theme-set="dark">Dark</button><button data-theme-set="system">System</button></div></div>
+    </div>
+
+    <form id="search-form" class="search glass" autocomplete="off" role="search">
+      <span data-icon="search" data-size="16" class="search-ico"></span>
+      <input id="search-input" placeholder="Search a company or ticker" spellcheck="false" aria-label="Search a company or ticker"
+             role="combobox" aria-controls="search-results" aria-autocomplete="list">
+      <kbd>/</kbd>
+      <div id="search-results" class="search-results" role="listbox" hidden></div>
+    </form>
+
+    <div class="topbar-right">
+      <div class="sources glass">
+        <span class="on" data-tip="Prices and market statistics from Yahoo Finance (delayed). Cached up to 10 minutes.">Mkt</span>
+        <span id="pill-sec">SEC</span>
+        <span id="pill-ai">AI</span>
+      </div>
+      <button id="theme-toggle" class="theme-toggle glass" aria-label="Switch between light and dark" data-tip="Light / dark (··· menu for System)">
+        <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>
+        <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+      <span id="clock" class="clock"></span>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- ===== RESEARCH: windows for companies ===== -->
+    <section class="env research-env" data-env="research" id="research-env">
+      <div id="workspace" class="workspace">
+        <div id="empty-state" class="empty-state home">
+          <div class="home-inner">
+            <div class="home-kicker">MarketLab</div>
+            <h2 class="home-title">Research what you own.<br><span>See what you're really exposed to.</span></h2>
+            <button class="home-search glass" data-home-search>
+              <span data-icon="search" data-size="18"></span><span class="home-search-text">Search a company or ticker</span><kbd>/</kbd></button>
+            <div class="home-actions">
+              <button class="home-action primary" data-home-go="invest">
+                <span class="home-action-ico" data-icon="invest" data-size="20"></span>
+                <span><b>Analyze my investments</b><small>Find the risks your holdings secretly share</small></span></button>
+              <button class="home-action" data-home-go="idea">
+                <span class="home-action-ico" data-icon="lab" data-size="20"></span>
+                <span><b>Test a trade idea</b><small>Describe a setup in one paragraph</small></span></button>
+            </div>
+            <div class="home-try"><span>Try</span>
+              <button class="home-chip" data-open="NVDA">NVIDIA</button>
+              <button class="home-chip" data-home-basket="NVDA,AMD,AVGO,TSM,QQQ">Am I diversified? NVDA · AMD · AVGO · TSM · QQQ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Minimized windows: a horizontal capsule (hidden when empty) -->
+      <div id="dock" class="dock glass" aria-label="Minimized windows" hidden></div>
+    </section>
+
+    <!-- ===== INVEST: thesis, basket, hidden exposures ===== -->
+    <section class="env invest-env" data-env="invest" id="invest-env" hidden>
+      <div class="env-body env-scroll"></div>
+    </section>
+
+    <!-- ===== LAB: one full-page environment ===== -->
+    <section class="env lab-env" data-env="lab" id="lab-env" hidden>
+      <div class="window-body env-scroll"></div>
+      <footer class="window-status"></footer>
+    </section>
+
+    <!-- ===== NOTEBOOK ===== -->
+    <section class="env notebook-env" data-env="notebook" id="notebook-env" hidden>
+      <div class="env-body env-scroll"></div>
+    </section>
+
+    <!-- ===== DATA & METHODOLOGY (secondary) ===== -->
+    <section class="env notebook-env data-env" data-env="data" id="data-env" hidden>
+      <div class="env-body env-scroll">
+        <div class="env-head lab-head">
+          <div class="lab-kicker">Data &amp; methodology</div>
+          <h1>Where the numbers come from</h1>
+          <p class="aside">MarketLab only shows what its sources say, labels estimates and delays, and never lets a test use information that wasn't known at the time.</p>
+        </div>
+        <div class="method-grid">
+          <div class="glass-flat method-card"><b>Prices</b><p>Yahoo Finance daily bars (adjusted for splits and dividends) and delayed quotes. Intraday futures: a composite of Yahoo contract series, the continuous front month and the FirstRate sample — each candle keeps its source. Bad bars are flagged, never silently "fixed".</p></div>
+          <div class="glass-flat method-card"><b>Company facts</b><p>SEC EDGAR filings (10-K, 10-Q, 8-K, XBRL financials) first; Yahoo Finance fills gaps and provides analyst estimates, always marked as estimates.</p></div>
+          <div class="glass-flat method-card"><b>Dependencies &amp; exposures</b><p>Read from each company's latest annual report: suppliers, customers, geographies, policy topics and theme language, with the quoted sentence. Nothing is inferred from general knowledge.</p></div>
+          <div class="glass-flat method-card"><b>Correlation ≠ dependency</b><p>Price correlation is measured from daily returns. Fundamental dependency comes from filings. Macro sensitivity is measured against market proxies (rates, dollar, oil, Nasdaq). They are shown side by side and never substituted for each other.</p></div>
+          <div class="glass-flat method-card"><b>No look-ahead</b><p>Every condition decides a bar using only data available at that bar's close. Earnings count from the first session that could react. Intraday concepts are known only when confirmed.</p></div>
+          <div class="glass-flat method-card"><b>No silent optimisation</b><p>MarketLab never tunes a strategy until it looks profitable. Every variant it tests is counted, and every relaxed rule is shown as original → relaxed.</p></div>
+        </div>
+        <p class="note">Research, not advice. MarketLab doesn't recommend buying or selling anything.</p>
+      </div>
+    </section>
+
+    <!-- ===== REPLAY: an honest shell ===== -->
+    <section class="env replay-env" data-env="replay" id="replay-env" hidden>
+      <div class="env-body env-scroll">
+        <div class="env-head">
+          <div class="lab-kicker" data-icon="replay">Replay</div>
+          <h1>Step through history without seeing the future</h1>
+          <p class="aside">Every trade a Lab test finds can be replayed candle by candle, with only what was knowable at each moment drawn on the chart.</p>
+        </div>
+        <div class="replay-plan">
+          <div><span class="label">Available now</span>
+            <p>Test an idea in the Lab, then press <b>Replay</b> on any matching trade: the setup, sweep, FVG, entry, stop and target appear only when they were known.
+               Every Lab condition decides a bar using data up to that bar's close — the rule Replay depends on.</p></div>
+          <div><span class="label">Coming next</span>
+            <p>A free-running market replay: pick any day and step through it bar by bar, with your saved conditions firing live as the clock moves.</p></div>
+        </div>
+        <button class="action-btn glass-flat" data-env-go="lab" data-icon="lab" data-size="16">Open the Lab</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Ask MarketLab drawer ===== -->
+  <aside id="ask" class="ask closed" aria-label="Ask MarketLab">
+    <header class="ask-head">
+      <div class="ask-title">
+        <h2><span data-icon="ask" data-size="20"></span>Ask <em>MarketLab</em> <span id="ask-ticker" class="ask-ticker"></span></h2>
+        <button id="ask-close" class="ask-close" aria-label="Close">
+          <svg viewBox="0 0 12 12" width="11" height="11"><path d="M3 3l6 6M9 3l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div id="ask-context" class="ask-context"></div>
+    </header>
+    <div id="ask-body" class="ask-body"></div>
+    <footer class="ask-foot">
+      <form id="ask-form" class="ask-form">
+        <textarea id="ask-input" rows="1" placeholder="Ask anything about this company…"></textarea>
+        <button id="ask-send" class="ask-send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 16 16" width="15" height="15"><path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
+      <div class="ask-disclaimer">Built from MarketLab's retrieved data, with sources. Not financial advice.</div>
+    </footer>
+  </aside>
+
+  <aside id="drawer" class="drawer" hidden aria-label="Details"></aside>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  <div id="tooltip" class="tooltip" hidden></div>
+  <div id="popover" class="popover" hidden></div>
+
+  <!-- ===== Blueprint for a Research window (copied by app.js) ===== -->
+  <template id="window-template">
+    <article class="window">
+      <header class="window-bar">
+        <div class="window-title"></div>
+        <!-- Fixed-size controls: hover only changes surface and icon opacity, never size -->
+        <div class="window-actions">
+          <button class="btn-min" data-tip="Minimize" aria-label="Minimize"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 6h6"/></svg></button>
+          <button class="btn-max" data-tip="Maximize" aria-label="Maximize"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4 8L8 4M5 3.5h3.5V7"/></svg></button>
+          <button class="btn-close" data-tip="Close" aria-label="Close"><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5"/></svg></button>
+        </div>
+      </header>
+      <div class="nav-row"><nav class="nav-capsule" aria-label="Research sections"></nav></div>
+      <div class="window-body"></div>
+      <footer class="window-status"></footer>
+      <div class="resize-handle rh-e" data-dir="e"></div>
+      <div class="resize-handle rh-s" data-dir="s"></div>
+      <div class="resize-handle rh-se" data-dir="se"></div>
+    </article>
+  </template>
+
+  <!-- charting library (Apache-2.0) -> helpers -> icons -> glossary -> tabs -> lab -> notebook -> AI panel -> shell -->
+  <script src="/static/vendor/lightweight-charts.standalone.production.js"></script>
+  <script src="/static/format.js"></script>
+  <script src="/static/icons.js"></script>
+  <script src="/static/glossary.js"></script>
+  <script src="/static/charts.js"></script>
+  <script src="/static/tabs.js"></script>
+  <script src="/static/tab_earnings.js"></script>
+  <script src="/static/tab_news.js"></script>
+  <script src="/static/tab_risk.js"></script>
+  <script src="/static/tab_risk_intel.js"></script>
+  <script src="/static/lab.js"></script>
+  <script src="/static/lab_tools.js"></script>
+  <script src="/static/research.js"></script>
+  <script src="/static/describe.js"></script>
+  <script src="/static/idea.js"></script>
+  <script src="/static/invest.js"></script>
+  <script src="/static/notebook.js"></script>
+  <script src="/static/assistant.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
