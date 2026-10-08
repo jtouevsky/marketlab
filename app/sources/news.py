@@ -346,6 +346,45 @@ def p_polygon(company):
             for a in data.get("results", [])]
 
 
+# --- Articles found by Ask MarketLab's web search -------------------------------------------------------------
+# Dated, non-social results are kept here (cache/web_articles/<TICKER>.json, 30 days) and read back as a normal
+# provider, so they go through the same filter / dedupe / cluster / rank pipeline as every other article and show up
+# in News, Risk, Charts, Ask MarketLab and Invest like any other event. No separate silo.
+WEB_STORE = config.CACHE_DIR / "web_articles"
+WEB_KEEP_DAYS = 30
+
+
+def save_web_articles(ticker, articles):
+    path = WEB_STORE / f"{ticker}.json"
+    try:
+        kept = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError):
+        kept = {}
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=WEB_KEEP_DAYS)).isoformat()
+    for a in articles:
+        if a.get("published") and a.get("url"):
+            kept[a["url"]] = a
+    kept = {u: a for u, a in kept.items() if (a.get("published") or "") >= cutoff}
+    try:
+        WEB_STORE.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(kept))
+    except OSError:
+        return 0
+    _cache.pop(("web_search", ticker), None)           # the News pipeline sees the new articles immediately
+    return len(articles)
+
+
+def p_web_search(company):
+    path = WEB_STORE / f"{company['ticker']}.json"
+    try:
+        stored = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return []
+    return [article(a["title"], a["url"], a.get("source_name"), a.get("source_type", "reporting"), "web_search",
+                    a.get("published"), a.get("summary"), via="Ask MarketLab web search")
+            for a in stored.values()]
+
+
 PROVIDERS = [
     {"id": "sec", "label": "SEC EDGAR (8-K / 6-K filings)", "kind": "Primary · regulatory filings", "fetch": p_sec,
      "needs": "SEC_USER_AGENT", "terms": "Public U.S. government data."},
@@ -370,6 +409,8 @@ PROVIDERS = [
      "fetch": p_publications, "needs": None, "terms": "Public RSS headlines; articles may be paywalled."},
     {"id": "seeking_alpha", "label": "Seeking Alpha", "kind": "Financial analysis", "fetch": p_seeking_alpha,
      "needs": None, "terms": "Public RSS for personal, non-commercial use; many articles are paywalled."},
+    {"id": "web_search", "label": "Web search (found by Ask MarketLab)", "kind": "Official web search · original links",
+     "fetch": p_web_search, "needs": None, "terms": "Only articles Ask MarketLab found while answering a current-events question."},
     {"id": "yahoo", "label": "Yahoo Finance", "kind": "Aggregator", "fetch": p_yahoo, "needs": None, "terms": "Via yfinance."},
     {"id": "yahoo_rss", "label": "Yahoo Finance RSS", "kind": "Aggregator", "fetch": p_yahoo_rss, "needs": None,
      "terms": "Public RSS."},

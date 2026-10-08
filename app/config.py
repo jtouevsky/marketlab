@@ -38,6 +38,13 @@ CLAUDE_CODE_MODEL = os.getenv("CLAUDE_CODE_MODEL", "").strip()  # sonnet / opus 
 AI_MODEL_FAST = os.getenv("AI_MODEL_FAST", "claude-haiku-4-5-20251001").strip()
 AI_MODEL_ASSISTANT = os.getenv("AI_MODEL_ASSISTANT", "claude-sonnet-5-5").strip()
 
+# Live web search for Ask MarketLab (current events, "why is it down today?"). Uses Anthropic's official web search:
+#   auto           (default) the same Claude connection as Ask MarketLab (API key: web search tool; Claude Code: WebSearch)
+#   anthropic_api / claude_code   force one;   off   never search the web
+WEB_SEARCH = os.getenv("WEB_SEARCH", "on").strip().lower() not in ("off", "false", "0", "no")
+WEB_SEARCH_PROVIDER = os.getenv("WEB_SEARCH_PROVIDER", "auto").strip().lower() or "auto"
+WEB_SEARCH_MAX_QUERIES = int(os.getenv("WEB_SEARCH_MAX_QUERIES", "4") or 4)
+
 # SEC EDGAR — free, no key, but the SEC requires every program to identify
 # itself with a name and contact email in the "User-Agent" header.
 SEC_USER_AGENT = os.getenv("SEC_USER_AGENT", "").strip()

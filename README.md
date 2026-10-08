@@ -36,6 +36,7 @@ I wanted to understand what I actually owned, not just what the tickers were cal
 - **Scenarios.** "What if AI capex slows?" traces which holdings the event reaches and through which exposure. It doesn't forecast returns.
 - **Multiple saved analyses** with tags, notes, duplicate, compare and autosave. Only your inputs are stored; results are recomputed.
 - **Lab:** a trade idea written as a sentence is turned into explicit conditions and tested on historical bars, with no look-ahead, robust statistics (bootstrap CIs, trimmed and winsorized means) and a "challenge" pass that looks for outliers, regime dependence and fragile parameters.
+- **Ask MarketLab searches the web for current events.** "Why is this stock down today?" uses MarketLab's own price, peer, news and filing data first, then several official web searches. Answers separate today / this week / older, cite every current claim with a link, and say "no clear catalyst found" instead of inventing one.
 - **Light and dark themes**, keyboard navigation, and it works at phone width.
 
 ## Tech stack

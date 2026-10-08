@@ -18,11 +18,13 @@ adding facts/documents in build_context() and removing the matching line
 from NOT_YET_AVAILABLE. Nothing else has to change.
 """
 
+import json
 import time
 from datetime import date
 
 import config
 import describe
+import freshness
 from data import now_iso
 from provenance import SOURCES, fact
 from sources import llm, sec, yahoo
@@ -428,11 +430,16 @@ def clean_history(messages):
     return cleaned
 
 
-def system_prompt(context, focus=None):
+def system_prompt(context, focus=None, evidence=None):
     prompt = SYSTEM_RULES.format(
         today=date.today().isoformat(), name=context["name"], ticker=context["ticker"],
         context=context_to_text(context),
     )
+    # Current-events question: fresh web evidence (or an honest note that there is none)
+    if evidence and evidence["decision"]["needs_web"]:
+        prompt += ("\n" + freshness.WEB_RULES +
+                   "\nThese rules take precedence over the earlier rule that recent information may come only from <marketlab_data>."
+                   "\n\n<web_results>\n" + (context.get("web_text") or freshness.web_text(evidence)) + "\n</web_results>")
     # "Explain this": the user clicked something in the interface.
     if focus and isinstance(focus, dict) and focus.get("label"):
         prompt += (f"\n\nThe user clicked this item in the MarketLab interface: "
@@ -443,7 +450,31 @@ def system_prompt(context, focus=None):
 
 
 def answer_stream(context, messages, focus=None):
-    return llm.assistant_stream(system_prompt(context, focus), messages, model=config.AI_MODEL_ASSISTANT, max_tokens=1200)
+    """
+    Streams the answer. Current-events questions first gather fresh evidence (price/peer check + web search);
+    control lines the browser strips out are written as `[[status]]...` and `[[web]]{json}`.
+    Anything that goes wrong while searching is reported to the model as "search failed"; the answer still comes.
+    """
+    question = messages[-1]["content"] if messages else ""
+    evidence = None
+    try:
+        decision = freshness.classify(question, messages)
+        if decision["needs_web"]:
+            yield "[[status]]Searching current sources…\n"
+            evidence = freshness.gather(context["ticker"], context, question, messages, decision)
+            context = freshness.augment(context, evidence)
+            yield "[[status]]\n"
+            payload = {"used": len(evidence["sources"]), "queries": evidence["queries"], "provider": evidence["provider"],
+                       "kind": decision["kind"], "problems": evidence["problems"], "sources": freshness.public_sources(evidence)}
+            yield "[[web]]" + json.dumps(payload) + "\n"
+            freshness.ingest(context["ticker"], evidence)
+    except Exception as error:     # never let the search layer break Ask MarketLab
+        evidence = {"decision": {"needs_web": True, "kind": "recent", "scope": "company", "reasons": []}, "queries": [],
+                    "results": [], "sources": [], "move": None, "searched": False, "provider": None,
+                    "problems": [f"The current-information check failed ({type(error).__name__}). Do not guess; say it could not be checked."]}
+        yield "[[status]]\n"
+    yield from llm.assistant_stream(system_prompt(context, focus, evidence), messages,
+                                    model=config.AI_MODEL_ASSISTANT, max_tokens=1200)
 
 
 # =============================================================================

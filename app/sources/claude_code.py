@@ -234,3 +234,48 @@ def stream(system, messages, model):
             os.remove(prompt_file)
         except OSError:
             pass
+
+
+def run_with_tools(prompt, tools, model, max_turns=6, timeout=120):
+    """
+    Run `claude -p` once with ONLY the named built-in tools (e.g. "WebSearch,WebFetch") and return every
+    stream-json event. Used for web search (sources/websearch.py). No files, shell, MCP servers or skills are enabled,
+    and the tool list is passed through unchanged, so nothing else can run.
+    """
+    binary = find_binary()
+    if not binary:
+        raise ClaudeCodeError("Claude Code isn't installed on this computer.")
+    _WORKDIR.mkdir(parents=True, exist_ok=True)
+    command = [binary, "-p", "--output-format", "stream-json", "--verbose",
+               "--model", _model_alias(model),
+               "--tools", tools, "--allowedTools", tools,
+               "--disallowedTools", "mcp__*,Bash,Edit,Write,Read,Glob,Grep,NotebookEdit,Task",
+               "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
+               "--max-turns", str(max_turns)]
+    events, process, timer = [], None, None
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   text=True, encoding="utf-8", cwd=_WORKDIR, env=_child_env(), bufsize=1)
+        timer = threading.Timer(timeout, process.kill)
+        timer.start()
+        process.stdin.write(prompt)
+        process.stdin.close()
+        for line in process.stdout:
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        process.wait(timeout=10)
+        errors = [e for e in events if e.get("type") == "result" and e.get("is_error")]
+        if errors:
+            raise _friendly(str(errors[0].get("result") or ""))
+        if not events:
+            raise _friendly(process.stderr.read())
+        return events
+    except OSError as error:
+        raise ClaudeCodeError(f"Couldn't start Claude Code ({type(error).__name__}).") from error
+    finally:
+        if timer:
+            timer.cancel()
+        if process and process.poll() is None:
+            process.kill()

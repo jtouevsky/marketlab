@@ -395,3 +395,40 @@ It also checks invalid prices, data gaps, stale quotes, volume spikes and OHLC c
 - **Charts:** TradingView Lightweight Charts (Apache-2.0), bundled in `static/vendor/`.
 
 Guidance, named suppliers/customers/competitors, government actions and controversies now come from filing text (see Risk intelligence). Still unavailable: revenue by segment and geography as structured data, and historical revenue estimates.
+
+## Ask MarketLab: current information (web search)
+
+Ask MarketLab answers from MarketLab's structured data first. For questions about *now* ("Why is RGTI down today?",
+"Did anything happen with IONQ this week?", "Was there a downgrade today?") it also gathers fresh evidence, then hands
+both to the model. Definitions and background ("What is EPS?", "What does RGTI do?") never trigger a search.
+
+```
+question
+  └─ freshness.classify()            rule-based gate: move / analyst / policy / recent / evergreen
+       └─ freshness.gather()
+            ├─ move_check()          price move (today, 5 sessions, 1 month), MarketLab news in the last 24 h,
+            │                        company releases, SEC filings (3 days), peers, sector ETF, SPY/QQQ  (facts only)
+            └─ WebSearchTool.search() several differently-angled queries in parallel (4 by default)
+                 ├─ results cleaned, de-duplicated, dated, bucketed TODAY / THIS WEEK / OLDER / UNDATED
+                 └─ ranked by source quality (SEC/company/government → Reuters/AP/major outlets → industry →
+                    commentary → social, labelled "unverified")
+  └─ assistant.system_prompt()       context + CATALYST CHECK + <web_results> + CURRENT-EVENTS RULES
+  └─ freshness.ingest()              dated, non-social results join the normal News/Event pipeline
+```
+
+* `app/sources/websearch.py` is the only file that knows about providers. `WebSearchTool` is a small interface;
+  `AnthropicWebSearch` (Anthropic's web search tool, API key) and `ClaudeCodeWebSearch` (Claude Code's built-in
+  WebSearch/WebFetch, through your own sign-in) are the two official implementations. Another legitimate provider is
+  `register("name", factory)` plus `WEB_SEARCH_PROVIDER=name`; nothing else changes. Nothing is scraped.
+* For the Claude Code provider only URLs that the tools actually returned are kept; the model may supply the
+  publication date it read on the page, never a URL. Results without a confirmed date are labelled UNDATED and are
+  never described as today's news.
+* The model is told: do not assume a company-specific catalyst; if peers and the sector moved the same way, say that is
+  correlation, not proof; if nothing explains the move, say no clear catalyst was found and what was checked. A failed or
+  empty search is reported to the model as such, and Ask still answers.
+* The stream carries two control lines the browser strips: `[[status]]Searching current sources…` and `[[web]]{json}`
+  (sources used: publisher, headline, date, bucket, quality, link). The panel shows a quiet status line and an
+  expandable "Sources used: N".
+* Articles found this way are stored in `cache/web_articles/<TICKER>.json` (30 days) and read back by `news.py` as the
+  provider `web_search`, so they cluster and rank with everything else and appear in News, Risk, Charts and Invest.
+* Settings: `WEB_SEARCH`, `WEB_SEARCH_PROVIDER`, `WEB_SEARCH_MAX_QUERIES` (see `.env.example`).

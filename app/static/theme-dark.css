@@ -332,3 +332,7 @@
 :root[data-theme="dark"] .inv-whatif-x:hover { background: rgba(255, 255, 255, 0.091); }
 :root[data-theme="dark"] .inv-recent-scen { border: 1px solid rgba(255, 255, 255, 0.132); }
 :root[data-theme="dark"] .inv-recent-edit:hover { background: rgba(255, 255, 255, 0.091); }
+:root[data-theme="dark"] .ask-searching { color: #a9afb8; }
+:root[data-theme="dark"] .web-sources { color: #a9afb8; }
+:root[data-theme="dark"] .web-sources .cite-n { background: rgba(255, 255, 255, 0.078); color: #eef1f6; }
+:root[data-theme="dark"] .web-meta { color: #a9afb8; }

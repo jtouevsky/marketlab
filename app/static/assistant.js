@@ -56,6 +56,39 @@ function closeAssistant() {
 }
 
 
+// ---------- Control lines in the answer stream ----------
+// The server may put `[[status]]text` (e.g. "Searching current sources…") and `[[web]]{json}` (the web sources
+// used) on their own lines before the answer. They are not part of the answer text.
+function parseStream(raw) {
+  let status = "", web = null, text = raw;
+  text = text.replace(/\[\[status\]\]([^\n]*)\n/g, (_, t) => { status = t.trim(); return ""; });
+  text = text.replace(/\[\[web\]\](\{[^\n]*\})\n/, (_, j) => { try { web = JSON.parse(j); } catch (e) { /* ignore */ } return ""; });
+  return { text, status, web };
+}
+
+function webSourcesHtml(web) {
+  if (!web) return "";
+  const BUCKET = { today: "Today", week: "This week", older: "Older background", undated: "Date unconfirmed" };
+  const rows = (web.sources || []).map((s) => {
+    const when = s.published ? (s.precision === "time" ? fmtDateTime(s.published) : fmtDay(s.published.slice(0, 10))) : "date unknown";
+    return `<li><span class="cite-n">${escapeHtml(s.id.slice(1))}</span>
+      <a href="${escapeHtml(s.url)}" target="_blank" rel="noopener">${escapeHtml(s.headline)}</a>
+      <span class="web-meta">${escapeHtml(s.publisher)} · ${escapeHtml(when)} · <span class="web-bucket b-${escapeHtml(s.bucket)}">${BUCKET[s.bucket] || ""}</span> · ${escapeHtml(s.quality)}</span></li>`;
+  }).join("");
+  const problems = (web.problems || []).map((p) => `<div class="web-problem">${escapeHtml(p)}</div>`).join("");
+  if (!rows && !problems) return "";
+  const queries = (web.queries || []).length ? `<div class="web-meta">Searched: ${web.queries.map((q) => escapeHtml(q)).join(" · ")}</div>` : "";
+  return `<details class="web-sources"><summary>${web.used ? `Sources used: ${web.used}` : "Web search: nothing usable found"}</summary>
+    ${rows ? `<ol>${rows}</ol>` : ""}${problems}${queries}</details>`;
+}
+
+function aiMessageHtml(message, infoSources) {
+  const parsed = message.web !== undefined ? { text: message.content, web: message.web } : parseStream(message.content);
+  const sources = (infoSources || []).concat((parsed.web && parsed.web.sources) || []);
+  return renderAnswer(parsed.text, sources) + webSourcesHtml(parsed.web);
+}
+
+
 // ---------- Rendering ----------
 function renderChat() {
   const chat = chats[activeTicker];
@@ -83,7 +116,7 @@ function renderChat() {
     html += connectClaudeHtml(info.ai, activeTicker);
   } else if (!chat.messages.length) {
     html += `<div class="ask-intro">Questions here are about <b>${escapeHtml(info.name)}</b> (${escapeHtml(activeTicker)}).
-      Answers are built from MarketLab's data and cite their sources, like <span class="cite">1</span>.
+      Answers are built from MarketLab's data and cite their sources, like <span class="cite">1</span>. For current events (“why is it down today?”) it also searches the web.
       ${info.ai && info.ai.label ? `<span class="ask-provider">Answered by Claude · ${escapeHtml(info.ai.label)}</span>` : ""}</div>`;
   }
 
@@ -95,7 +128,7 @@ function renderChat() {
   for (const message of chat.messages) {
     html += message.role === "user"
       ? `<div class="msg user">${escapeHtml(message.content)}</div>`
-      : `<div class="msg ai">${renderAnswer(message.content, info.sources)}</div>`;
+      : `<div class="msg ai">${aiMessageHtml(message, info.sources)}</div>`;
   }
   askBody.innerHTML = html;
   askBody.scrollTop = info.ai_enabled || chat.messages.length ? askBody.scrollHeight : 0;
@@ -224,7 +257,10 @@ async function ask(question, focus = null) {
       if (done) break;
       answer += decoder.decode(value, { stream: true });
       if (activeTicker === ticker) {
-        bubble.innerHTML = renderAnswer(answer, chat.info.sources);
+        const live = parseStream(answer);
+        const searching = live.status ? `<div class="ask-searching" aria-live="polite"><span class="typing"><span></span><span></span><span></span></span> ${escapeHtml(live.status)}</div>` : "";
+        bubble.innerHTML = searching + (live.text.trim() ? renderAnswer(live.text, (chat.info.sources || []).concat((live.web && live.web.sources) || [])) : "") + webSourcesHtml(live.web);
+        if (!live.status && !live.text.trim() && !live.web) bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
         askBody.scrollTop = askBody.scrollHeight;
       }
     }
@@ -234,7 +270,8 @@ async function ask(question, focus = null) {
 
   const failed = answer.includes("[[error]]");
   if (failed) chat.messages[chat.messages.length - 1].failed = true;   // the question
-  chat.messages.push({ role: "assistant", content: answer, failed });
+  const finalParsed = parseStream(answer);
+  chat.messages.push({ role: "assistant", content: finalParsed.text, web: finalParsed.web, failed });
   busy = false;
   if (activeTicker === ticker) renderChat();
 }
